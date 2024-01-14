@@ -16,21 +16,34 @@
         :key="todo.id"
         class="entry"
     >
-        {{todo.date}} - {{todo.content}}
+        {{todo.date}} - {{todo.content}} - {{ todo.done?'done':'not done' }}
         <button
             @click="deleteTodo(todo.id)"
         >Delete</button>
+        <button
+            @click="toggleDone(todo.id)"
+        >Done?</button>
     </div>
 </template>
 
 <script setup>
 /* Imports */
-import { ref } from 'vue'
-import { v4 as uuidv4 } from 'uuid'
+import { ref, onMounted } from 'vue'
+import { 
+    collection, onSnapshot, 
+    doc, addDoc, deleteDoc, updateDoc, 
+    query, orderBy,  
+}  from "firebase/firestore"
+import { db } from '@/firebase'
+
+/* Firebase Refs */
+
+const todosCollectionRef = collection(db, "todos") 
+const todosCollectionQuery = query(todosCollectionRef, orderBy("date", 'desc'));
 
 /* Todos */
 const todos = ref([
-    {
+/*    {
         id: 'id1',
         content: 'Huvudvärk',
         date: '2024-01-04'
@@ -44,28 +57,49 @@ const todos = ref([
         id: 'id3',
         content: 'Huvudvärk',
         date: '2023-12-25'
-    }
+    }*/
 ])
+
+/* Get todos */
+
+onMounted(() => {
+    onSnapshot(todosCollectionQuery, (querySnapshot) => {
+        const fbTodos = [];
+        querySnapshot.forEach((doc) => {
+            const todo = {
+                id: doc.id,
+                content: doc.data().content,
+                done: doc.data().done
+            }
+            fbTodos.push(todo)
+        });
+        todos.value = fbTodos
+    });
+})
 
 /* Add todos */
 const newTodoContent = ref('')
 const addTodo = () => {
-    const newTodo = {
-        id: uuidv4(),
+    addDoc(todosCollectionRef, {
         content: newTodoContent.value,
-        date: new Date().toLocaleDateString()
-    }
-    todos.value.unshift(newTodo)
+        date: Date.now(),
+        done: false
+    });
     newTodoContent.value = ''
 }
 
 /* Delete todo */
 const deleteTodo = id => {
-    todos.value = todos.value.filter(todo => id !== todo.id)
+    deleteDoc(doc(todosCollectionRef, id))
 }
 
-/* Mark done : https://youtu.be/84mhLKUM04E?t=1201&si=O2dirhVru5gcOXGA */
-
+/* Mark Done */
+const toggleDone = id => {
+    const index = todos.value.findIndex(todo => todo.id === id)
+    updateDoc(doc(todosCollectionRef, id), {
+        done: !todos.value[index].done
+    });
+}
 
 </script>
 
